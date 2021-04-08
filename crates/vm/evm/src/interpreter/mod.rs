@@ -27,6 +27,9 @@ use bytes::Bytes;
 use ethereum_types::{Address, H256, U256};
 use hash::keccak;
 use num_bigint::BigUint;
+use parity_crypto::publickey::{
+    recover_allowing_all_zero_message, Signature, ZeroesAllowedMessage,
+};
 use std::{cmp, marker::PhantomData, mem, sync::Arc};
 
 use vm::{
@@ -196,6 +199,7 @@ pub struct Interpreter<Cost: CostType> {
     resume_output_range: Option<(U256, U256)>,
     resume_result: Option<InstructionResult<Cost>>,
     last_stack_ret_len: usize,
+    authorized_address: Option<Address>,
     _type: PhantomData<Cost>,
 }
 
@@ -324,6 +328,7 @@ impl<Cost: CostType> Interpreter<Cost> {
             last_stack_ret_len: 0,
             resume_output_range: None,
             resume_result: None,
+            authorized_address: None,
             _type: PhantomData,
         }
     }
@@ -588,6 +593,7 @@ impl<Cost: CostType> Interpreter<Cost> {
             || ((instruction == SHL || instruction == SHR || instruction == SAR)
                 && !schedule.have_bitwise_shifting)
             || (instruction == EXTCODEHASH && !schedule.have_extcodehash)
+            || ((instruction == AUTH || instruction == AUTHCALL) && !schedule.eip3074)
             || (instruction == CHAINID && !schedule.have_chain_id)
             || (instruction == SELFBALANCE && !schedule.have_selfbalance)
             || ((instruction == BEGINSUB || instruction == JUMPSUB || instruction == RETURNSUB)
@@ -754,17 +760,63 @@ impl<Cost: CostType> Interpreter<Cost> {
                     Err(trap) => Ok(InstructionResult::Trap(trap)),
                 };
             }
+            instructions::AUTH => {
+                let commit = H256::from(self.stack.pop_back());
+
+                let v = self.stack.pop_back();
+                let r = H256::from(self.stack.pop_back());
+                let r = Into::<[u8; 32]>::into(r).into(); // TODO
+                let s = H256::from(self.stack.pop_back());
+                let s = Into::<[u8; 32]>::into(s).into(); // TODO
+
+                // Clear the authorized address, and only update it once a new one is successfully
+                // recovered from the signature.
+                self.authorized_address = None;
+
+                if v.bits() <= 1 {
+                    let bit = v.byte(0);
+                    let s = Signature::from_rsv(&r, &s, bit);
+
+                    if s.is_valid() && s.is_low_s() {
+                        // EIP-3074 messages are of the form:
+                        //  keccak256(0x03 ++ invoker ++ commit)
+                        const SIG_LEN: usize = 65;
+                        let mut msg = Vec::with_capacity(SIG_LEN);
+                        msg.push(3u8); // Magic type byte defined in EIP-3074
+                        msg.extend_from_slice(&[0u8; 12]);
+                        msg.extend_from_slice(&*self.params.code_address);
+                        msg.extend_from_slice(&*commit);
+                        assert_eq!(msg.len(), SIG_LEN);
+
+                        let hash = keccak(msg);
+
+                        // TODO: Fix ethereum_types version mismatch.
+                        let hash092: [u8; 32] = hash.into();
+                        let recovery_message = ZeroesAllowedMessage(hash092.into());
+                        if let Ok(pkey) = recover_allowing_all_zero_message(&s, recovery_message) {
+                            let phash = keccak(pkey);
+                            let addr = Address::from_slice(&phash[12..phash.len()]);
+
+                            self.authorized_address = Some(addr);
+                        }
+                    }
+                }
+
+                let retval = self.authorized_address.unwrap_or_default();
+                self.stack.push(H256::from(retval).into());
+            }
             instructions::CALL
             | instructions::CALLCODE
             | instructions::DELEGATECALL
-            | instructions::STATICCALL => {
+            | instructions::STATICCALL
+            | instructions::AUTHCALL => {
                 assert!(
                     ext.schedule().call_value_transfer_gas > ext.schedule().call_stipend,
                     "overflow possible"
                 );
 
-                self.stack.pop_back();
-                let call_gas = provided.expect("`provided` comes through Self::exec from `Gasometer::get_gas_cost_mem`; `gas_gas_mem_cost` guarantees `Some` when instruction is `CALL`/`CALLCODE`/`DELEGATECALL`/`CREATE`; this is one of `CALL`/`CALLCODE`/`DELEGATECALL`; qed");
+                let requested_gas = self.stack.pop_back();
+                let mut call_gas = provided.expect("`provided` comes through Self::exec from `Gasometer::get_gas_cost_mem`; `gas_gas_mem_cost` guarantees `Some` when instruction is `CALL`/`CALLCODE`/`DELEGATECALL`/`CREATE`; this is one of `CALL`/`CALLCODE`/`DELEGATECALL`; qed");
                 let code_address = self.stack.pop_back();
                 let code_address = u256_to_address(&code_address);
 
@@ -776,26 +828,54 @@ impl<Cost: CostType> Interpreter<Cost> {
                     Some(self.stack.pop_back())
                 };
 
+                let value_ext = if instruction == instructions::AUTHCALL {
+                    Some(self.stack.pop_back())
+                } else {
+                    None
+                };
+
                 let in_off = self.stack.pop_back();
                 let in_size = self.stack.pop_back();
                 let out_off = self.stack.pop_back();
                 let out_size = self.stack.pop_back();
 
                 // Add stipend (only CALL|CALLCODE when value > 0)
-                let call_gas = call_gas
-                    .overflow_add(value.map_or_else(
-                        || Cost::from(0),
-                        |val| match val.is_zero() {
-                            false => Cost::from(ext.schedule().call_stipend),
-                            true => Cost::from(0),
-                        },
-                    ))
-                    .0;
+                if instruction != instructions::AUTHCALL {
+                    call_gas = call_gas
+                        .overflow_add(value.map_or_else(
+                            || Cost::from(0),
+                            |val| match val.is_zero() {
+                                false => Cost::from(ext.schedule().call_stipend),
+                                true => Cost::from(0),
+                            },
+                        ))
+                        .0;
+                }
 
                 ext.al_insert_address(code_address);
 
                 // Get sender & receive addresses, check if we have balance
                 let (sender_address, receive_address, has_balance, call_type) = match instruction {
+                    instructions::AUTHCALL => {
+                        if ext.is_static() && value.map_or(false, |v| !v.is_zero()) {
+                            return Err(vm::Error::MutableCallInStaticContext);
+                        }
+                        let authorized_address = match self.authorized_address.as_ref() {
+                            Some(addr) => addr,
+                            None => return Err(vm::Error::NoAuthorizedAddress),
+                        };
+                        if call_gas.as_u256() < requested_gas {
+                            return Err(vm::Error::InsufficientAuthCallGas);
+                        }
+                        let has_balance = ext.balance(&self.params.address)?
+                            >= value.expect("value set for all but delegate call; qed");
+                        (
+                            authorized_address,
+                            &code_address,
+                            has_balance,
+                            CallType::Call,
+                        )
+                    }
                     instructions::CALL => {
                         if ext.is_static() && value.map_or(false, |v| !v.is_zero()) {
                             return Err(vm::Error::MutableCallInStaticContext);
@@ -840,7 +920,9 @@ impl<Cost: CostType> Interpreter<Cost> {
                 // clear return data buffer before creating new call frame.
                 self.return_data = ReturnData::empty();
 
-                let can_call = has_balance && ext.depth() < ext.schedule().max_depth;
+                let can_call = value_ext.unwrap_or_default().is_zero()
+                    && has_balance
+                    && ext.depth() < ext.schedule().max_depth;
                 if !can_call {
                     self.stack.push(U256::zero());
                     return Ok(InstructionResult::UnusedGas(call_gas));

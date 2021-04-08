@@ -130,6 +130,13 @@ impl FakeExt {
         ext
     }
 
+    /// New fake externalities with Baikal schedule rules
+    pub fn new_baikal(from: Address, to: Address, builtins: &[Address]) -> Self {
+        let mut ext = FakeExt::new_berlin(from, to, builtins);
+        ext.schedule = Schedule::new_baikal();
+        ext
+    }
+
     /// Alter fake externalities to allow wasm
     pub fn with_wasm(mut self) -> Self {
         self.schedule.wasm = Some(Default::default());

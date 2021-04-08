@@ -444,6 +444,8 @@ impl<'a> CallCreateExecutive<'a> {
             | Err(vm::Error::SubStackUnderflow { .. })
             | Err(vm::Error::OutOfSubStack { .. })
             | Err(vm::Error::InvalidSubEntry)
+            | Err(vm::Error::NoAuthorizedAddress)
+            | Err(vm::Error::InsufficientAuthCallGas)
             | Ok(FinalizationResult {
                 apply_state: false, ..
             }) => {

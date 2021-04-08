@@ -340,6 +340,10 @@ enum_with_from_u8! {
         DELEGATECALL = 0xf4,
         #[doc = "create a new account and set creation address to sha3(sender + sha3(init code)) % 2**160"]
         CREATE2 = 0xf5,
+        #[doc = "authorize the contract to act on behalf of an externally owned account"]
+        AUTH = 0xf6,
+        #[doc = "like CALL but it sets the caller based on the authorized account"]
+        AUTHCALL = 0xf7,
         #[doc = "stop execution and revert state changes. Return output data."]
         REVERT = 0xfd,
         #[doc = "like CALL but it does not take value, nor modify the state"]
@@ -607,6 +611,8 @@ lazy_static! {
         arr[RETURN as usize] = Some(InstructionInfo::new("RETURN", 2, 0, GasPriceTier::Zero));
         arr[DELEGATECALL as usize] = Some(InstructionInfo::new("DELEGATECALL", 6, 1, GasPriceTier::Special));
         arr[STATICCALL as usize] = Some(InstructionInfo::new("STATICCALL", 6, 1, GasPriceTier::Special));
+        arr[AUTH as usize] = Some(InstructionInfo::new("AUTH", 4, 1, GasPriceTier::Special));
+        arr[AUTHCALL as usize] = Some(InstructionInfo::new("AUTHCALL", 8, 1, GasPriceTier::Special));
         arr[SUICIDE as usize] = Some(InstructionInfo::new("SUICIDE", 1, 0, GasPriceTier::Special));
         arr[CREATE2 as usize] = Some(InstructionInfo::new("CREATE2", 4, 1, GasPriceTier::Special));
         arr[REVERT as usize] = Some(InstructionInfo::new("REVERT", 2, 0, GasPriceTier::Zero));

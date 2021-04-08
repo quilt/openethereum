@@ -53,6 +53,10 @@ pub enum Error {
     OutOfBounds,
     /// Execution has been reverted with REVERT instruction.
     Reverted,
+    /// When the requested gas for an AUTHCALL is greater than the remaining gas.
+    InsufficientAuthCallGas,
+    /// When the code attempts to AUTHCALL without first setting an authorized address.
+    NoAuthorizedAddress,
 }
 
 impl<'a> From<&'a VmError> for Error {
@@ -72,6 +76,8 @@ impl<'a> From<&'a VmError> for Error {
             VmError::MutableCallInStaticContext => Error::MutableCallInStaticContext,
             VmError::OutOfBounds => Error::OutOfBounds,
             VmError::Reverted => Error::Reverted,
+            VmError::NoAuthorizedAddress => Error::NoAuthorizedAddress,
+            VmError::InsufficientAuthCallGas => Error::InsufficientAuthCallGas,
         }
     }
 }
@@ -100,6 +106,8 @@ impl fmt::Display for Error {
             MutableCallInStaticContext => "Mutable Call In Static Context",
             OutOfBounds => "Out of bounds",
             Reverted => "Reverted",
+            NoAuthorizedAddress => "No authorized address",
+            InsufficientAuthCallGas => "Insufficient gas for authorized call",
         };
         message.fmt(f)
     }
@@ -123,6 +131,8 @@ impl Encodable for Error {
             SubStackUnderflow => 11,
             OutOfSubStack => 12,
             InvalidSubEntry => 13,
+            InsufficientAuthCallGas => 14,
+            NoAuthorizedAddress => 15,
         };
 
         s.append_internal(&value);
@@ -148,6 +158,7 @@ impl Decodable for Error {
             11 => Ok(SubStackUnderflow),
             12 => Ok(OutOfSubStack),
             13 => Ok(InvalidSubEntry),
+            14 => Ok(NoAuthorizedAddress),
             _ => Err(DecoderError::Custom("Invalid error type")),
         }
     }

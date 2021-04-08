@@ -100,6 +100,10 @@ pub enum Error {
     OutOfBounds,
     /// Execution has been reverted with REVERT.
     Reverted,
+    /// When the requested gas for an AUTHCALL is greater than the remaining gas.
+    InsufficientAuthCallGas,
+    /// When the code attempts to use AUTHCALL without first using AUTH.
+    NoAuthorizedAddress,
 }
 
 impl From<Box<ethtrie::TrieError>> for Error {
@@ -148,6 +152,8 @@ impl fmt::Display for Error {
             Wasm(ref msg) => write!(f, "Internal error: {}", msg),
             OutOfBounds => write!(f, "Out of bounds"),
             Reverted => write!(f, "Reverted"),
+            InsufficientAuthCallGas => write!(f, "Not enough gas for AUTHCALL"),
+            NoAuthorizedAddress => write!(f, "No authorized address"),
         }
     }
 }

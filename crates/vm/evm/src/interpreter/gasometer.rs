@@ -134,6 +134,7 @@ impl<Gas: evm::CostType> Gasometer<Gas> {
         };
 
         let cost = match instruction {
+            instructions::AUTH => Request::Gas(Gas::from(schedule.auth_gas)),
             instructions::JUMPDEST => Request::Gas(Gas::from(1)),
             instructions::SSTORE => {
                 if schedule.eip1706 && self.current_gas <= Gas::from(schedule.call_stipend) {
@@ -256,6 +257,39 @@ impl<Gas: evm::CostType> Gasometer<Gas> {
                         .overflow_mul(Gas::from(schedule.log_data_gas)));
                 let gas = overflowing!(data_gas.overflow_add(Gas::from(log_gas)));
                 Request::GasMem(gas, mem_needed(stack.peek(0), stack.peek(1))?)
+            }
+            instructions::AUTHCALL => {
+                let mut gas = Gas::from(schedule.authcall_gas);
+                let mem = cmp::max(
+                    mem_needed(stack.peek(5), stack.peek(6))?,
+                    mem_needed(stack.peek(3), stack.peek(4))?,
+                );
+
+                let address = u256_to_address(stack.peek(1));
+                gas = accessed_addresses_gas(&address, gas.as_usize());
+
+                let is_value_transfer = !stack.peek(2).is_zero();
+
+                if (!schedule.no_empty && !ext.exists(&address)?)
+                    || (schedule.no_empty
+                        && is_value_transfer
+                        && !ext.exists_and_not_null(&address)?)
+                {
+                    gas = overflowing!(gas.overflow_add(schedule.call_new_account_gas.into()));
+                }
+
+                if is_value_transfer {
+                    gas =
+                        overflowing!(gas.overflow_add(schedule.authcall_value_transfer_gas.into()));
+                }
+
+                // AUTHCALL with a zero for gas passes all available gas.
+                let requested = match *stack.peek(0) {
+                    x if x.is_zero() => None,
+                    r => Some(r),
+                };
+
+                Request::GasMemProvide(gas, mem, requested)
             }
             instructions::CALL | instructions::CALLCODE => {
                 let mut gas = Gas::from(schedule.call_gas);

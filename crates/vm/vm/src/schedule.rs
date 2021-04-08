@@ -74,8 +74,10 @@ pub struct Schedule {
     pub log_topic_gas: usize,
     /// Gas price for `CREATE` opcode
     pub create_gas: usize,
-    /// Gas price for `*CALL*` opcodes
+    /// Gas price for `*CALL*` opcodes (excluding `AUTHCALL`)
     pub call_gas: usize,
+    /// Gas price for `AUTHCALL`
+    pub authcall_gas: usize,
     /// EIP-2929 COLD_SLOAD_COST
     pub cold_sload_cost: usize,
     /// EIP-2929 COLD_ACCOUNT_ACCESS_COST
@@ -86,7 +88,9 @@ pub struct Schedule {
     pub call_stipend: usize,
     /// Additional gas required for value transfer (`CALL|CALLCODE`)
     pub call_value_transfer_gas: usize,
-    /// Additional gas for creating new account (`CALL|CALLCODE`)
+    /// Additional gas required for value transfer (`AUTHCALL`)
+    pub authcall_value_transfer_gas: usize,
+    /// Additional gas for creating new account (`CALL|CALLCODE|AUTHCALL`)
     pub call_new_account_gas: usize,
     /// Refund for SUICIDE
     pub suicide_refund_gas: usize,
@@ -141,6 +145,10 @@ pub struct Schedule {
     pub have_selfbalance: bool,
     /// BEGINSUB, JUMPSUB and RETURNSUB opcodes enabled.
     pub have_subs: bool,
+    /// AUTH and AUTHCALL opcodes enabled.
+    pub eip3074: bool,
+    /// Amount of gas consumed by AUTH. Depends on EIP-3074.
+    pub auth_gas: usize,
     /// Kill basic accounts below this balance if touched.
     pub kill_dust: CleanDustMode,
     /// Enable EIP-1283 rules
@@ -268,11 +276,14 @@ impl Schedule {
             log_topic_gas: 375,
             create_gas: 32000,
             call_gas: 700,
+            authcall_gas: 2600,
+            auth_gas: 3100,
             cold_account_access_cost: 0,
             cold_sload_cost: 0,
             warm_storage_read_cost: 0,
             call_stipend: 2300,
             call_value_transfer_gas: 9000,
+            authcall_value_transfer_gas: 6700,
             call_new_account_gas: 25000,
             suicide_refund_gas: 24000,
             memory_gas: 3,
@@ -302,6 +313,7 @@ impl Schedule {
             wasm: None,
             eip2929: false,
             eip2930: false,
+            eip3074: false,
         }
     }
 
@@ -359,6 +371,16 @@ impl Schedule {
         schedule
     }
 
+    /// Schedule for the Baikal fork of the Ethereum main net.
+    pub fn new_baikal() -> Schedule {
+        let mut schedule = Self::new_berlin();
+
+        schedule.eip3074 = true;
+        schedule.authcall_gas = EIP2929_COLD_ACCOUNT_ACCESS_COST;
+
+        schedule
+    }
+
     fn new(efcd: bool, hdc: bool, tcg: usize) -> Schedule {
         Schedule {
             exceptional_failed_code_deposit: efcd,
@@ -388,11 +410,14 @@ impl Schedule {
             log_topic_gas: 375,
             create_gas: 32000,
             call_gas: 40,
+            authcall_gas: 2600,
+            auth_gas: 3100,
             cold_account_access_cost: 0,
             cold_sload_cost: 0,
             warm_storage_read_cost: 0,
             call_stipend: 2300,
             call_value_transfer_gas: 9000,
+            authcall_value_transfer_gas: 6700,
             call_new_account_gas: 25000,
             suicide_refund_gas: 24000,
             memory_gas: 3,
@@ -422,6 +447,7 @@ impl Schedule {
             wasm: None,
             eip2929: false,
             eip2930: false,
+            eip3074: false,
         }
     }
 

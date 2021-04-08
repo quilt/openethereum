@@ -1255,6 +1255,80 @@ fn test_calls(factory: super::Factory) {
     assert_eq!(ext.calls.len(), 2);
 }
 
+evm_test! {test_authcall_without_auth: test_authcall_without_auth_int}
+fn test_authcall_without_auth(factory: super::Factory) {
+    let code = "588080808080805af7".from_hex().unwrap();
+
+    let address = Address::from_slice(&[0xaa; 20]);
+    let mut params = ActionParams::default();
+    params.gas = U256::from(50_000);
+    params.code = Some(Arc::new(code));
+    params.address = address.clone();
+    params.code_address = address.clone();
+    let mut ext = FakeExt::new_baikal(
+        Address::from_str("0000000000000000000000000000000000000000").unwrap(),
+        Address::from_str("000000000000000000000000636F6E7472616374").unwrap(),
+        &[
+            Address::from_str("0000000000000000000000000000000000000001").unwrap(),
+            Address::from_str("0000000000000000000000000000000000000002").unwrap(),
+            Address::from_str("0000000000000000000000000000000000000003").unwrap(),
+        ],
+    );
+
+    let error = {
+        let vm = factory.create(params, ext.schedule(), ext.depth());
+        test_finalize(vm.exec(&mut ext).ok().unwrap()).unwrap_err()
+    };
+
+    assert_eq!(error, vm::Error::NoAuthorizedAddress);
+    assert!(ext.calls.is_empty());
+}
+
+evm_test! {test_authcall_with_auth: test_authcall_with_auth_int}
+fn test_authcall_with_auth(factory: super::Factory) {
+    let code = "7f794dd7b68f540151c21953cc5322e6df1b809eec12e561353832a5d68e14809a7f7aa455a9f8b84965a8c2f32e29dbb8147a913fffa1b02375c6ab28161e6ebf2560007fbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbf6506000808080808073000000000000000000000000000000000000bbbb3df700".from_hex().unwrap();
+
+    let address = Address::from_slice(&[0xaa; 20]);
+    let recv_address = Address::from_str("000000000000000000000000000000000000bbbb").unwrap();
+    let auth_address = Address::from_str("a94f5374Fce5edBC8E2a8697C15331677e6EbF0B").unwrap();
+    let mut params = ActionParams::default();
+    params.gas = U256::from(50_000);
+    params.code = Some(Arc::new(code));
+    params.address = address.clone();
+    params.code_address = address.clone();
+    let mut ext = FakeExt::new_baikal(
+        Address::from_str("0000000000000000000000000000000000000000").unwrap(),
+        Address::from_str("000000000000000000000000636F6E7472616374").unwrap(),
+        &[
+            Address::from_str("0000000000000000000000000000000000000001").unwrap(),
+            Address::from_str("0000000000000000000000000000000000000002").unwrap(),
+            Address::from_str("0000000000000000000000000000000000000003").unwrap(),
+        ],
+    );
+
+    // TODO: Verify gas_left
+    let gas_left = {
+        let vm = factory.create(params, ext.schedule(), ext.depth());
+        test_finalize(vm.exec(&mut ext).ok().unwrap()).unwrap()
+    };
+
+    assert_eq!(U256::from(44263), gas_left);
+
+    assert_set_contains(
+        &ext.calls,
+        &FakeCall {
+            call_type: FakeCallType::Call,
+            create_scheme: None,
+            gas: U256::from(43572),
+            sender_address: Some(auth_address.clone()),
+            receive_address: Some(recv_address.clone()),
+            value: Some(U256::from(0)),
+            data: vec![],
+            code_address: Some(recv_address.clone()),
+        },
+    );
+}
+
 evm_test! {test_create_in_staticcall: test_create_in_staticcall_int}
 fn test_create_in_staticcall(factory: super::Factory) {
     let code = "600060006064f000".from_hex().unwrap();

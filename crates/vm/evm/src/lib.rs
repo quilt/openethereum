@@ -24,6 +24,7 @@ extern crate keccak_hash as hash;
 extern crate memory_cache;
 extern crate num_bigint;
 extern crate parity_bytes as bytes;
+extern crate parity_crypto;
 extern crate parking_lot;
 extern crate vm;
 

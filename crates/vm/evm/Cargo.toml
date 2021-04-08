@@ -17,6 +17,7 @@ parking_lot = "0.7"
 memory-cache = { path = "../../util/memory-cache" }
 ethcore-builtin = { path = "../builtin" }
 num-bigint = "0.2"
+parity-crypto = { version = "0.6.2", features = [ "publickey" ] }
 
 [dev-dependencies]
 rustc-hex = "1.0"
