@@ -1265,7 +1265,7 @@ fn test_authcall_without_auth(factory: super::Factory) {
     params.code = Some(Arc::new(code));
     params.address = address.clone();
     params.code_address = address.clone();
-    let mut ext = FakeExt::new_baikal(
+    let mut ext = FakeExt::new_puxi(
         Address::from_str("0000000000000000000000000000000000000000").unwrap(),
         Address::from_str("000000000000000000000000636F6E7472616374").unwrap(),
         &[
@@ -1296,7 +1296,7 @@ fn test_authcall_with_auth(factory: super::Factory) {
     params.code = Some(Arc::new(code));
     params.address = address.clone();
     params.code_address = address.clone();
-    let mut ext = FakeExt::new_baikal(
+    let mut ext = FakeExt::new_puxi(
         Address::from_str("0000000000000000000000000000000000000000").unwrap(),
         Address::from_str("000000000000000000000000636F6E7472616374").unwrap(),
         &[

@@ -101,7 +101,7 @@ mod accounts {
                 | SpecType::Ropsten
                 | SpecType::Kovan
                 | SpecType::Goerli
-                | SpecType::Baikal
+                | SpecType::Puxi
                 | SpecType::Sokol
                 | SpecType::Dev => vec![],
                 _ => vec!["00a329c0648769a73afac7f9381e08fb43dbea72".into()],
