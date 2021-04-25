@@ -371,8 +371,8 @@ impl Schedule {
         schedule
     }
 
-    /// Schedule for the Baikal fork of the Ethereum main net.
-    pub fn new_baikal() -> Schedule {
+    /// Schedule for the Puxi fork of the Ethereum main net.
+    pub fn new_puxi() -> Schedule {
         let mut schedule = Self::new_berlin();
 
         schedule.eip3074 = true;

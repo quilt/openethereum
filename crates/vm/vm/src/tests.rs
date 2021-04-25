@@ -130,10 +130,10 @@ impl FakeExt {
         ext
     }
 
-    /// New fake externalities with Baikal schedule rules
-    pub fn new_baikal(from: Address, to: Address, builtins: &[Address]) -> Self {
+    /// New fake externalities with Puxi schedule rules
+    pub fn new_puxi(from: Address, to: Address, builtins: &[Address]) -> Self {
         let mut ext = FakeExt::new_berlin(from, to, builtins);
-        ext.schedule = Schedule::new_baikal();
+        ext.schedule = Schedule::new_puxi();
         ext
     }
 

@@ -50,7 +50,7 @@ pub enum SpecType {
     Kovan,
     Rinkeby,
     Goerli,
-    Baikal,
+    Puxi,
     Sokol,
     Yolo3,
     Dev,
@@ -84,7 +84,7 @@ impl str::FromStr for SpecType {
             "goerli" | "görli" | "testnet" => SpecType::Goerli,
             "sokol" | "poasokol" => SpecType::Sokol,
             "yolo3" => SpecType::Yolo3,
-            "baikal" => SpecType::Baikal,
+            "puxi" => SpecType::Puxi,
             "dev" => SpecType::Dev,
             other => SpecType::Custom(other.into()),
         };
@@ -109,7 +109,7 @@ impl fmt::Display for SpecType {
             SpecType::Kovan => "kovan",
             SpecType::Rinkeby => "rinkeby",
             SpecType::Goerli => "goerli",
-            SpecType::Baikal => "baikal",
+            SpecType::Puxi => "puxi",
             SpecType::Sokol => "sokol",
             SpecType::Yolo3 => "yolo3",
             SpecType::Dev => "dev",
@@ -138,7 +138,7 @@ impl SpecType {
             SpecType::Goerli => Ok(ethereum::new_goerli(params)),
             SpecType::Sokol => Ok(ethereum::new_sokol(params)),
             SpecType::Yolo3 => Ok(ethereum::new_yolo3(params)),
-            SpecType::Baikal => Ok(ethereum::new_baikal(params)),
+            SpecType::Puxi => Ok(ethereum::new_puxi(params)),
             SpecType::Dev => Ok(Spec::new_instant()),
             SpecType::Custom(ref filename) => {
                 let file = fs::File::open(filename).map_err(|e| {
